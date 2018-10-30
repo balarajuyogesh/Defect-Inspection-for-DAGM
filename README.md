@@ -1,4 +1,4 @@
-# Defect-Inspection-with-DAGM
+# Defect-Inspection-for-DAGM
 
 ## Data-set 
 ##### First version
