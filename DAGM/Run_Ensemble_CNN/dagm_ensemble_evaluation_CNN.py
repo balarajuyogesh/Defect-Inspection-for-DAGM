@@ -172,15 +172,15 @@ def loadModel( path, isGPU):
     return network
     
 
-def getEnsembleResultCNN(args, Xs):    
+def getEnsembleResultCNN(args, Xs, model_li):    
     Sigmoid = nn.Sigmoid()
     Softmax = nn.Softmax()
     result_var = 0
     iterNo = 0
-    for model in args.load_folder_file:
-        modelPath = "preTrained_models/"+ model[0] + "/" + model[1] + '_all.pkl'        
-        net = loadModel(modelPath, args.isGPU)
-        net.eval()
+    for net in model_li:
+#        modelPath = "preTrained_models/"+ model[0] + "/" + model[1] + '_all.pkl'        
+#        net = loadModel(modelPath, args.isGPU)
+#        net.eval()
         
         output_var = net(Xs)
         output_var = Softmax(output_var)
@@ -198,7 +198,7 @@ def getEnsembleResultCNN(args, Xs):
         
     return result_var
     
-def detectDefectEnsenbleCNN( args, image):
+def changeImageToFeature( args, image):
       
     height = image.shape[0]
     width = image.shape[1]
@@ -212,7 +212,6 @@ def detectDefectEnsenbleCNN( args, image):
     resultFolderPath = "./Results/"
     if not os.path.exists(resultFolderPath):
         os.mkdir(resultFolderPath) 
-    
 
 #    Xs = np.array(images, dtype=np.float32)/255.    
 #    Xs = Xs.reshape([-1,1,height,width]) 
@@ -228,19 +227,11 @@ def detectDefectEnsenbleCNN( args, image):
 #    Xs_tensor = torch.from_numpy(Xs_np) 
 #    dataset = TensorDataset(data_tensor=Xs_tensor, target_tensor=Xs_tensor)        
 #    test_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)           
-    
-    total_probs = []
-    total_predictions = []
-#    for k, [Xs, Ys] in enumerate(test_loader):
-        
-    
+   
+
     Xs_var = numpyToTorchVariable(Xs_np, isGPU=args.isGPU)
-                        
-    result_np = getEnsembleResultCNN(args, Xs_var)
     
-    
-    
-    return result_np
+    return Xs_var
     
     
 class dotdict(dict):
@@ -295,10 +286,17 @@ if __name__ == '__main__':
 #    if FCN_settings.isGPU==False:
 #        print("Runing by CPU")
     
+    # load pre-trained models
+    model_li = []    
+    for model in settings1.load_folder_file:
+        modelPath = "preTrained_models/"+ model[0] + "/" + model[1] + '_all.pkl'        
+        net = loadModel(modelPath, settings1.isGPU)
+        net.eval()    
+        model_li.append(net)    
+    
     images = JK_image.getImages2("./DataForEvaluation")
     height = images[0].shape[0]
     width = images[0].shape[1]
-
 
     blockC = settings1.feature_size[0]
     blockH = settings1.feature_size[1]
@@ -307,7 +305,12 @@ if __name__ == '__main__':
     # Defect inspection by FCN  
     results = []
     for image in images:
-        cnn_result = detectDefectEnsenbleCNN(settings1, image) 
+        
+        # (1, 512, 512, 1) to (-1, 1, 32, 32)
+        Xs_var = changeImageToFeature(settings1, image) 
+        
+        # get the result by CNN ensenble
+        cnn_result = getEnsembleResultCNN(settings1, Xs_var, model_li)
         
         probs, predictions = torch.max(cnn_result, 1)
     #        print(probs, predictions)
